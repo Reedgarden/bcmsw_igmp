@@ -1,21 +1,17 @@
 # kernel directory 
-KERNELDIR = /home/jhkim/workspace/olleh/stblinux-2.6.37
-
-# module files
-MODULES := bcmsw_proxy.o
-
 CROSS_COMPILE := mipsel-linux-
 ARCH := mips
-KDIR := $(KERNELDIR)
+KDIR := /home/jhkim/workspace/olleh/stblinux-2.6.37
 PWD  := $(shell pwd) 
 
-obj-m := $(MODULES)
+obj-m += bcmsw_proxy.o
+bcmsw_proxy-objs := bcmsw_mii.o bcmsw_igmp.o bcmsw_main.o
 
 MAKEARCH := $(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)
 
 all: module
 module:
-	$(MAKEARCH) -C $(KDIR) SUBDIRS=$(PWD) modules
+	$(MAKEARCH) -C $(KDIR) M=$(PWD) modules 
 	
 clean:
 	rm -rf *.ko

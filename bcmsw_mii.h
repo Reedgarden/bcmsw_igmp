@@ -1,0 +1,29 @@
+/*
+ * bcmsw_mii.h
+ *
+ *  Created on: May 18, 2012
+ *      Author: jhkim
+ */
+
+#ifndef BCMSW_MII_H_
+#define BCMSW_MII_H_
+
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/skbuff.h>
+
+#include <net/net_namespace.h>
+#include <net/arp.h>
+#include <net/ip.h>
+#include <net/protocol.h>
+#include <net/route.h>
+#include <net/sock.h>
+#include <net/checksum.h>
+
+struct net_device* net_get_device(void);
+void net_dev_test_mii_rw(struct net_device*);
+void net_set_mac_node(__u8 type, __be32 group, __u16 port );
+static inline __u16 net_get_port(struct sk_buff *skb) {	return (skb_rtable(skb)->fl.iif == 0)? 8 : 2; }
+
+#endif /* BCMSW_MII_H_ */
