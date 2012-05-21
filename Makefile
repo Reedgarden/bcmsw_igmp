@@ -5,7 +5,7 @@ KDIR := /home/jhkim/workspace/olleh/stblinux-2.6.37
 PWD  := $(shell pwd) 
 
 obj-m += bcmsw_proxy.o
-bcmsw_proxy-objs := bcmsw_mii.o bcmsw_igmp.o bcmsw_nodes.o module_main.o
+bcmsw_proxy-objs := bcmsw_mii.o bcmsw_igmp.o bcmsw_snoop.o module_main.o
 
 MAKEARCH := $(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)
 

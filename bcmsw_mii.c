@@ -34,7 +34,7 @@ void net_dev_test_mii_rw(struct net_device* dev)
 	printk(KERN_ALERT "[%s] %s \n", __func__, (j==0)?"SUCCESS":"FAILED" );
 }
 
-void net_set_mac_node(__u8 type, __be32 group, __u16 port )
-{
-	printk(KERN_ALERT "+%s+ %d Type 0x%x Group 0x%x port %d \n", __func__, __LINE__, type, group, port );
-}
+//void net_set_mac_node(__u8 type, __be32 group, __u16 port )
+//{
+//	printk(KERN_ALERT "+%s+ %d Type 0x%x Group 0x%x port %d \n", __func__, __LINE__, type, group, port );
+//}

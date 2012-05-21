@@ -7,6 +7,7 @@
 
 #include "bcmsw_igmp.h"
 #include "bcmsw_mii.h"
+#include "bcmsw_snoop.h"
 
 /* sys_open() system wrapping */
 int (*original_handler)(struct sk_buff *skb);
@@ -56,7 +57,7 @@ int igmp_w_rcv(struct sk_buff *skb)
 	case IGMP_HOST_MEMBERSHIP_REPORT:
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
 	case IGMP_HOST_LEAVE_MESSAGE:
-		net_set_mac_node(ih->type, ih->group, net_get_port(skb));
+		set_ip_node(ih->type, ih->group, net_get_port(skb));
 		break;
 	/* case another protocol */
 	default:

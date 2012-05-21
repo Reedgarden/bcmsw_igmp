@@ -12,7 +12,7 @@
 
 #include "bcmsw_mii.h"
 #include "bcmsw_igmp.h"
-#include "bcmsw_nodes.h"
+#include "bcmsw_snoop.h"
 
 //schedule
 void ethsw_igmp_peek(unsigned long node);
@@ -27,6 +27,13 @@ static int init_bcmsw_module(void)
 	net_dev_test_mii_rw(dev);
 
 	node_init();
+
+	// test codes
+	set_ip_node(0x01,0x01,0x01);
+	set_ip_node(0x01,0x02,0x01);
+	set_ip_node(0x01,0x03,0x01);
+	set_ip_node(0x01,0x04,0x01);
+	set_ip_node(0x01,0x05,0x01);
 
 	igmp_wrap_init();
 
