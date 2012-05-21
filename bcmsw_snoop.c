@@ -19,6 +19,11 @@
 #include "bcmsw_snoop.h"
 #include "bcmsw_mii.h"
 
+#define MC_TABLE_STATUS_NONE 	0
+#define MC_TABLE_STATUS_CHANGED 1
+#define MC_NODE_STATUS_DONE 	0
+#define MC_NODE_STATUS_CHANGED  1
+
 #define _debug_ printk("%s %d \n", __func__,__LINE__);
 
 #define ETH_ALEN 6
@@ -75,10 +80,8 @@ int thread_function(void *data)
 		// already_exist(&snoop->macm_list, mac_node);
 
 		mac_node = get_mac_from_ip_node(igmp_node);
-
 		oos = update_mac_table(snoop, mac_node);
-		printk(" 0x%d !!! \n", snoop->mac_table_cnt);
-		if( oos != 0 )
+		if( oos != MC_TABLE_STATUS_NONE )
 			mac_table_updated(snoop);
 
 		kfree(igmp_node);		// i don't need anymore ..
@@ -194,7 +197,7 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 	node->group = group;
 	node->port = port;
 
-	/*printk("%s %d ... t 0x%x g 0x%x %d \n", __func__, __LINE__, node->type, node->group, node->port);*/
+	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);
 
 	// add
 	spin_lock(&snoop->ip_lock);
@@ -209,6 +212,7 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 {
 	struct mac_node* m_node = (struct mac_node*)kmalloc(sizeof(struct mac_node), GFP_KERNEL);
 	m_node->type = n->type;
+	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, n->port);
 	m_node->port_bitmap = (1<<n->port);	// be careful!
 	m_node->eth_addr[5] = 0x01;
 	m_node->eth_addr[4] = 0x00;
@@ -216,7 +220,7 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 	m_node->eth_addr[2] = (n->group) & 0x000000ff;
 	m_node->eth_addr[1] = (n->group>>8) & 0x000000ff;;
 	m_node->eth_addr[0] = (n->group>>16) & 0x000000ff;
-	m_node->sync_s=0;
+	m_node->sync_s=MC_NODE_STATUS_CHANGED;		// table has changed!
 
 #if 0
 	int i;
@@ -235,24 +239,20 @@ static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
 	struct list_head* ptr;
 	struct mac_node* entry;
 
-	if(s->mac_table_cnt == 0)	// nothing ..
+	if(s->mac_table_cnt == 0)	// if nothing in table ..
 	{
 		spin_lock(&s->mac_lock);
 		list_add_tail(&mac_node->mc_list_node, &s->macm_list);
 		s->mac_table_cnt++;
 		spin_unlock(&s->mac_lock);
-		return 1;
+		return MC_TABLE_STATUS_CHANGED;				// table has changed!
 	}
 
 	// for loop should be changed!!
 	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
 		entry = list_entry(ptr, struct mac_node, mc_list_node);
 		if(memcmp(entry->eth_addr, mac_node->eth_addr, ETH_ALEN) == 0) {
-
-			_debug_
-
-			_oos=set_mac_node(entry, mac_node);
-			return _oos;
+			return set_mac_node(entry, mac_node);
 		}
 		/*
 		 * else
@@ -261,12 +261,12 @@ static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
 		 */
 	}
 
-	//not exist
+	// if not exist..
 	spin_lock(&s->mac_lock);
 	list_add_tail(&mac_node->mc_list_node, &s->macm_list);
 	s->mac_table_cnt++;
 	spin_unlock(&s->mac_lock);
-	return _oos;
+	return MC_TABLE_STATUS_CHANGED;		// table has changed!
 }
 
 static int set_mac_node(struct mac_node* node, struct mac_node* new)
@@ -278,7 +278,7 @@ static int set_mac_node(struct mac_node* node, struct mac_node* new)
 	case IGMPV3_HOST_MEMBERSHIP_REPORT:
 		if( !(node->port_bitmap & new->port_bitmap) ) {
 			node->port_bitmap |= new->port_bitmap;
-			node->sync_s=1;	// node status has changed !
+			node->sync_s=MC_NODE_STATUS_CHANGED;	// node status has changed !
 			oos++;
 		}
 		break;
@@ -286,7 +286,7 @@ static int set_mac_node(struct mac_node* node, struct mac_node* new)
 	case IGMP_HOST_LEAVE_MESSAGE:
 		if( node->port_bitmap & new->port_bitmap ) {
 			node->port_bitmap &= ~new->port_bitmap;
-			node->sync_s=1;	// node status has changed !
+			node->sync_s=MC_NODE_STATUS_CHANGED;	// node status has changed !
 			oos++;
 		}
 		break;
@@ -299,10 +299,22 @@ static int set_mac_node(struct mac_node* node, struct mac_node* new)
 
 static void mac_table_updated(struct bcmsw_snoop* s)
 {
-	// let's write!!
-	_debug_
-	_debug_
-	_debug_
+	struct list_head *ptr, *mac_head;
+	struct mac_node* tmp;
 
-	net_dev_mii_write();
+	mac_head = &s->macm_list;
+
+	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
+		tmp = list_entry(ptr, struct mac_node, mc_list_node);
+
+		if(tmp->sync_s == MC_NODE_STATUS_CHANGED)
+		{
+			//write!!
+			printk("*%s* %d .. 0x%x\n", __func__, __LINE__, tmp->port_bitmap);
+			net_dev_mii_write(tmp->eth_addr, tmp->port_bitmap);
+			tmp->sync_s = MC_NODE_STATUS_DONE;
+			s->mac_table_cnt--;
+		}
+	}
+
 }

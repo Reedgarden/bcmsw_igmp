@@ -14,23 +14,18 @@
 #include "bcmsw_igmp.h"
 #include "bcmsw_snoop.h"
 
-//schedule
-void ethsw_igmp_peek(unsigned long node);
-void delay_loop(unsigned long t);
-
-
 static int init_bcmsw_module(void)
 {
-/*	struct net_device* dev;
-	dev = net_get_device();*/
-	/*net_dev_test_mii_rw(dev);*/
-
 	node_init();
-
+#if 0 // test codes
+	struct net_device* dev;
+	dev = net_get_device();
+	net_dev_test_mii_rw(dev);
 	// test codes
 	set_ip_node(0x01,0xffffffef,0x01);
-
+#endif
 	igmp_wrap_init();
+	printk("bcmsw_module inserted \n");
 
 	return 0;
 }
