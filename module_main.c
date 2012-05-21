@@ -21,19 +21,14 @@ void delay_loop(unsigned long t);
 
 static int init_bcmsw_module(void)
 {
-	struct net_device* dev;
-
-	dev = net_get_device();
-	net_dev_test_mii_rw(dev);
+/*	struct net_device* dev;
+	dev = net_get_device();*/
+	/*net_dev_test_mii_rw(dev);*/
 
 	node_init();
 
 	// test codes
-	set_ip_node(0x01,0x01,0x01);
-	set_ip_node(0x01,0x02,0x01);
-	set_ip_node(0x01,0x03,0x01);
-	set_ip_node(0x01,0x04,0x01);
-	set_ip_node(0x01,0x05,0x01);
+	set_ip_node(0x01,0xffffffef,0x01);
 
 	igmp_wrap_init();
 

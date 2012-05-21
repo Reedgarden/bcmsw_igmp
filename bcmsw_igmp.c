@@ -12,6 +12,7 @@
 /* sys_open() system wrapping */
 int (*original_handler)(struct sk_buff *skb);
 static struct net_protocol* original_protocol;
+static inline __u16 net_get_port(struct sk_buff *skb) {	return (skb_rtable(skb)->fl.iif == 0)? 8 : 2; }
 
 void igmp_wrap_init(void)
 {

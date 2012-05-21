@@ -23,7 +23,12 @@
 
 struct net_device* net_get_device(void);
 void net_dev_test_mii_rw(struct net_device*);
-//void net_set_mac_node(__u8 type, __be32 group, __u16 port );
-static inline __u16 net_get_port(struct sk_buff *skb) {	return (skb_rtable(skb)->fl.iif == 0)? 8 : 2; }
+
+#if 0
+int net_dev_mii_write(struct net_device*, );
+int net_dev_mii_read (struct net_device*, );
+#endif
+
+int net_dev_mii_write(void);
 
 #endif /* BCMSW_MII_H_ */
