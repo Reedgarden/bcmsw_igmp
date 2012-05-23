@@ -13,9 +13,11 @@
 #include "bcmsw_mii.h"
 #include "bcmsw_igmp.h"
 #include "bcmsw_snoop.h"
+#include "bcmsw_proc.h"
 
 static int init_bcmsw_module(void)
 {
+	proc_init();
 	node_init();
 #if 0 // test codes
 	struct net_device* dev;
@@ -35,6 +37,7 @@ static void deinit_bcmsw_module(void)
 	printk("deinit\n");
 	igmp_wrap_deinit();
 	node_uninit();
+	proc_uninit();
 }
 
 

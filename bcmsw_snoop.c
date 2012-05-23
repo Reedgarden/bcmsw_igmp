@@ -18,6 +18,7 @@
 
 #include "bcmsw_snoop.h"
 #include "bcmsw_mii.h"
+#include "bcmsw_proc.h"
 
 #define MC_TABLE_STATUS_NONE 	0
 #define MC_TABLE_STATUS_CHANGED 1
@@ -25,6 +26,8 @@
 #define MC_NODE_STATUS_CHANGED  1
 
 #define _debug_ printk("%s %d \n", __func__,__LINE__);
+
+
 
 #define ETH_ALEN 6
 struct mac_node
@@ -61,6 +64,13 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n);
 static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node);
 static int set_mac_node(struct mac_node* node, struct mac_node* new);
 static void mac_table_updated(struct bcmsw_snoop* s);
+static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data);
+
+const bcmsw_proc_t proc_snoop = {
+		0444, 	//mode
+		"switch_mac_table",
+		show_mac_table
+};
 
 int thread_function(void *data)
 {
@@ -95,9 +105,13 @@ int thread_function(void *data)
 void node_init(void)
 {
 	struct bcmsw_snoop* snoop = get_snoop_instance();
+
 	// create kthread
 	snoop->task = kthread_create(&thread_function, (void*)snoop, "nodes_thread");
 	wake_up_process(snoop->task);
+
+	// register proc mac_table_read
+	proc_register(&proc_snoop);
 }
 
 void node_uninit(void)
@@ -234,7 +248,6 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 
 static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
 {
-	int _oos=0;
 	struct list_head* mac_head = &s->macm_list;
 	struct list_head* ptr;
 	struct mac_node* entry;
@@ -317,4 +330,12 @@ static void mac_table_updated(struct bcmsw_snoop* s)
 		}
 	}
 
+}
+
+static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data)
+{
+	_debug_
+	_debug_
+	_debug_
+	return 0;
 }
