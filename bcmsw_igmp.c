@@ -35,6 +35,7 @@ int igmp_w_rcv(struct sk_buff *skb)
 {
 	struct igmphdr *ih;
 	struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
+	int result;
 
 	if (in_dev == NULL)
 		goto toss;
@@ -58,7 +59,8 @@ int igmp_w_rcv(struct sk_buff *skb)
 	case IGMP_HOST_MEMBERSHIP_REPORT:
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
 	case IGMP_HOST_LEAVE_MESSAGE:
-		set_ip_node(ih->type, ih->group, net_get_port(skb));
+		if( set_ip_node(ih->type, ih->group, net_get_port(skb)) != 0 )
+			printk(KERN_ERR "WARN!! Fail igmp Hooking!! \n");
 		break;
 	/* case another protocol */
 	default:

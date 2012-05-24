@@ -27,8 +27,6 @@
 
 #define _debug_ printk("%s %d \n", __func__,__LINE__);
 
-
-
 #define ETH_ALEN 6
 struct mac_node
 {
@@ -85,9 +83,10 @@ int thread_function(void *data)
 		if(!snoop->insertable)
 			break;
 
-		printk("%s %d ... t 0x%x g 0x%x %d \n", __func__, __LINE__, igmp_node->type, igmp_node->group, igmp_node->port);
-
-		// already_exist(&snoop->macm_list, mac_node);
+		/*printk("%s %d ... t 0x%x g 0x%x %d \n", __func__, __LINE__, igmp_node->type, igmp_node->group, igmp_node->port);*/
+		//if( already_exist(&snoop->macm_list, mac_node) )
+		// kfree(igmp_node);
+		// continue;
 
 		mac_node = get_mac_from_ip_node(igmp_node);
 		oos = update_mac_table(snoop, mac_node);
@@ -211,8 +210,7 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 	node->group = group;
 	node->port = port;
 
-	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);
-
+	/*printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);*/
 	// add
 	spin_lock(&snoop->ip_lock);
 	list_add_tail(&node->ip_list_node, &snoop->ipm_list);
@@ -226,7 +224,7 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 {
 	struct mac_node* m_node = (struct mac_node*)kmalloc(sizeof(struct mac_node), GFP_KERNEL);
 	m_node->type = n->type;
-	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, n->port);
+
 	m_node->port_bitmap = (1<<n->port);	// be careful!
 	m_node->eth_addr[5] = 0x01;
 	m_node->eth_addr[4] = 0x00;
@@ -236,13 +234,6 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 	m_node->eth_addr[0] = (n->group>>16) & 0x000000ff;
 	m_node->sync_s=MC_NODE_STATUS_CHANGED;		// table has changed!
 
-#if 0
-	int i;
-	for(i=0;i<6;i++)
-	{
-		printk("0x%02x \n", m_node->eth_addr[i]);
-	}
-#endif
 	return m_node;
 }
 
@@ -252,7 +243,7 @@ static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
 	struct list_head* ptr;
 	struct mac_node* entry;
 
-	if(s->mac_table_cnt == 0)	// if nothing in table ..
+	if(mac_head == mac_head->next)	// if nothing in list ..
 	{
 		spin_lock(&s->mac_lock);
 		list_add_tail(&mac_node->mc_list_node, &s->macm_list);
@@ -285,6 +276,7 @@ static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
 static int set_mac_node(struct mac_node* node, struct mac_node* new)
 {
 	int oos=0;
+
 	switch(node->type)
 	{
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
@@ -334,8 +326,21 @@ static void mac_table_updated(struct bcmsw_snoop* s)
 
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
-	_debug_
-	_debug_
-	_debug_
-	return 0;
+	int len;
+	struct bcmsw_snoop* s = get_snoop_instance();
+	struct list_head *ptr, *mac_head;
+	struct mac_node* tmp;
+
+	mac_head = &s->macm_list;
+
+	len= sprintf(page    , " mac \t\t portmap \t type    \n");
+	len+=sprintf(page+len, " ============================================\n");
+	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
+		tmp = list_entry(ptr, struct mac_node, mc_list_node);
+		len += sprintf( page+len , " 0x%x\t", tmp->eth_addr);
+		len += sprintf( page+len , " 0x%x\t\t", tmp->port_bitmap);
+		len += sprintf( page+len , " 0x%x\n", tmp->type);
+	}
+	*eof = 1;
+	return len;
 }
