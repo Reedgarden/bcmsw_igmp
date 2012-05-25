@@ -22,12 +22,14 @@
 #include <net/checksum.h>
 
 struct net_device* net_get_device(void);
-#if 0
+
+int net_dev_mii_write(unsigned char* mac, unsigned short portmap);
+unsigned int net_dev_get_up(void);
+
+#if 0	// this is test code
 void net_dev_test_mii_rw(struct net_device*);
 int net_dev_mii_write(struct net_device*, );
 int net_dev_mii_read (struct net_device*, );
 #endif
-
-int net_dev_mii_write(unsigned char* mac, unsigned short portmap);
 
 #endif /* BCMSW_MII_H_ */

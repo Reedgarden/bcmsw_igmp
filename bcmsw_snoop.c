@@ -206,11 +206,12 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 		return -ENOMEM;
 	}
 
+	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);
+
 	node->type = type;
 	node->group = group;
 	node->port = port;
 
-	/*printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);*/
 	// add
 	spin_lock(&snoop->ip_lock);
 	list_add_tail(&node->ip_list_node, &snoop->ipm_list);

@@ -5,22 +5,41 @@
  *      Author: jhkim
  */
 
+#include <linux/ip.h>
+
 #include "bcmsw_igmp.h"
 #include "bcmsw_mii.h"
 #include "bcmsw_snoop.h"
 
+#define IGMP_REG_MODE_OFF 	(0)
+#define IGMP_REG_MODE_ON 	(1)
+
+#define IGMP_PORT_NUM_1		(1)
+#define IGMP_PORT_NUM_2		(2)
+#define IGMP_PORT_NUM_IMP	(8)
+
+/* IMPORT EXPORTED SYMBOL */
+int ethsw_igmp_mode(struct net_device *dev, int mode);
+
 /* sys_open() system wrapping */
 int (*original_handler)(struct sk_buff *skb);
 static struct net_protocol* original_protocol;
+static int igmp_packet_check_loop(struct sk_buff *skb);
 static inline __u16 net_get_port(struct sk_buff *skb) {	return (skb_rtable(skb)->fl.iif == 0)? 8 : 2; }
 
 void igmp_wrap_init(void)
 {
+	struct net_device* dev;
 	int hash = IPPROTO_IGMP & (MAX_INET_PROTOS -1);
-	original_protocol = inet_protos[ hash ];
 
+	// igmp protocol hook
+	original_protocol = inet_protos[ hash ];
 	original_handler = original_protocol->handler;
 	original_protocol->handler = igmp_w_rcv;
+
+	// igmp mode setting
+	dev = net_get_device();
+	ethsw_igmp_mode(dev, IGMP_REG_MODE_OFF);
 }
 
 void igmp_wrap_deinit(void)
@@ -34,6 +53,7 @@ void igmp_wrap_deinit(void)
 int igmp_w_rcv(struct sk_buff *skb)
 {
 	struct igmphdr *ih;
+	struct iphdr *iph;
 	struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
 	int result;
 
@@ -55,18 +75,23 @@ int igmp_w_rcv(struct sk_buff *skb)
 	}
 
 	ih = igmp_hdr(skb);
+	iph = ip_hdr(skb);
+
 	switch(ih->type) {
 	case IGMP_HOST_MEMBERSHIP_REPORT:
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
 	case IGMP_HOST_LEAVE_MESSAGE:
+		if( set_ip_node(ih->type, ih->group, igmp_packet_check_loop(skb)) != 0 )
+			printk(KERN_ERR "WARN!! Fail igmp Hooking!! \n");
+#if 0
 		if( set_ip_node(ih->type, ih->group, net_get_port(skb)) != 0 )
 			printk(KERN_ERR "WARN!! Fail igmp Hooking!! \n");
+#endif
 		break;
 	/* case another protocol */
 	default:
 		break;
 	}
-//	printk("+%s+ (%d) type 0x%0x group 0x%x \n",__func__, __LINE__, ih->type , ih->group );
 
 	original_handler(skb);
 	return 0;
@@ -76,4 +101,9 @@ toss:
 	return 0;
 }
 
-
+static int igmp_packet_check_loop(struct sk_buff *skb)
+{
+	unsigned int lo_addr = net_dev_get_up();	// get local host address
+	struct iphdr *iph = ip_hdr(skb);
+	return (lo_addr == iph->saddr) ? IGMP_PORT_NUM_IMP : IGMP_PORT_NUM_2;
+}

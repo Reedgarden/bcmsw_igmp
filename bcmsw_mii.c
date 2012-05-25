@@ -1,8 +1,16 @@
+/*
+ * bcmsw_mii.c
+ *
+ *  Created on: May 18, 2012
+ *      Author: jhkim
+ */
+
 #include "bcmsw_mii.h"
+#include <linux/inetdevice.h>
 
 struct net_device *bcmemac_get_device(void);
+
 int bcmsw_reg_get_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned char* buff, unsigned int* data);
-//int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, int port, int pull);
 int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned short portmap);
 
 struct net_device* net_get_device(void)
@@ -16,7 +24,22 @@ struct net_device* net_get_device(void)
 	return net_root_dev;
 }
 
-#if 0
+int net_dev_mii_write(unsigned char* mac, unsigned short portmap)
+{
+	struct net_device* dev = net_get_device();
+	bcmsw_reg_set_igmp_entry(dev, mac, portmap);		// 0 - IGMP_JOIN
+	return 0;
+}
+unsigned int net_dev_get_up(void)
+{
+	struct net_device* dev = net_get_device();
+	__be32 saddr=0;
+	saddr = inet_select_addr(dev,0,0);	// get local host ip address
+	printk("address 0x%x \n", saddr);
+	return saddr;
+}
+
+#if 0	// this is test code
 void net_dev_test_mii_rw(struct net_device* dev)
 {
 	unsigned char mac[6] = {0x01, 0x02, 0x03, 0x5e, 0x00, 0x01};
@@ -36,10 +59,3 @@ void net_dev_test_mii_rw(struct net_device* dev)
 	printk(KERN_ALERT "[%s] %s \n", __func__, (j==0)?"SUCCESS":"FAILED" );
 }
 #endif
-
-int net_dev_mii_write(unsigned char* mac, unsigned short portmap)
-{
-	struct net_device* dev = net_get_device();
-	bcmsw_reg_set_igmp_entry(dev, mac, portmap);		// 0 - IGMP_JOIN
-	return 0;
-}
