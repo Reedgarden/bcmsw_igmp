@@ -206,8 +206,6 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 		return -ENOMEM;
 	}
 
-	printk("*%s* %d .. 0x%x\n", __func__, __LINE__, port);
-
 	node->type = type;
 	node->group = group;
 	node->port = port;
@@ -230,9 +228,9 @@ static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
 	m_node->eth_addr[5] = 0x01;
 	m_node->eth_addr[4] = 0x00;
 	m_node->eth_addr[3] = 0x5E;
-	m_node->eth_addr[2] = (n->group) & 0x000000ff;
-	m_node->eth_addr[1] = (n->group>>8) & 0x000000ff;;
-	m_node->eth_addr[0] = (n->group>>16) & 0x000000ff;
+	m_node->eth_addr[2] = (n->group>>8) & 0x000000ff;
+	m_node->eth_addr[1] = (n->group>>16) & 0x000000ff;;
+	m_node->eth_addr[0] = (n->group>>24) & 0x000000ff;
 	m_node->sync_s=MC_NODE_STATUS_CHANGED;		// table has changed!
 
 	return m_node;
@@ -316,7 +314,7 @@ static void mac_table_updated(struct bcmsw_snoop* s)
 		if(tmp->sync_s == MC_NODE_STATUS_CHANGED)
 		{
 			//write!!
-			printk("*%s* %d .. 0x%x\n", __func__, __LINE__, tmp->port_bitmap);
+			/*printk("*%s* %d .. 0x%x\n", __func__, __LINE__, tmp->port_bitmap);*/
 			net_dev_mii_write(tmp->eth_addr, tmp->port_bitmap);
 			tmp->sync_s = MC_NODE_STATUS_DONE;
 			s->mac_table_cnt--;
@@ -327,21 +325,30 @@ static void mac_table_updated(struct bcmsw_snoop* s)
 
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
-	int len;
+	int len, i;
 	struct bcmsw_snoop* s = get_snoop_instance();
 	struct list_head *ptr, *mac_head;
 	struct mac_node* tmp;
 
 	mac_head = &s->macm_list;
 
-	len= sprintf(page    , " mac \t\t portmap \t type    \n");
-	len+=sprintf(page+len, " ============================================\n");
+	len= sprintf(page    , " mac \t\t\t\t portmap \t type    \n");
+	len+=sprintf(page+len, "======================================================\n");
 	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
 		tmp = list_entry(ptr, struct mac_node, mc_list_node);
-		len += sprintf( page+len , " 0x%x\t", tmp->eth_addr);
+
+		for(i=ETH_ALEN-1; i>=0; i--) {
+			len += sprintf( page+len , "0x%02x", tmp->eth_addr[i]);
+			if(i!=0)
+				len += sprintf( page+len , ":");
+			else
+				len += sprintf( page+len , "\t");
+		}
+
 		len += sprintf( page+len , " 0x%x\t\t", tmp->port_bitmap);
 		len += sprintf( page+len , " 0x%x\n", tmp->type);
 	}
+
 	*eof = 1;
 	return len;
 }
