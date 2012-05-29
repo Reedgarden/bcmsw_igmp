@@ -53,9 +53,7 @@ void igmp_wrap_deinit(void)
 int igmp_w_rcv(struct sk_buff *skb)
 {
 	struct igmphdr *ih;
-	struct iphdr *iph;
 	struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
-	int result;
 
 	if (in_dev == NULL)
 		goto toss;
@@ -75,7 +73,6 @@ int igmp_w_rcv(struct sk_buff *skb)
 	}
 
 	ih = igmp_hdr(skb);
-	iph = ip_hdr(skb);
 
 	switch(ih->type) {
 	case IGMP_HOST_MEMBERSHIP_REPORT:
