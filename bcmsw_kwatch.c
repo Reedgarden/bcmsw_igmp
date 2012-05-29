@@ -73,7 +73,7 @@ unsigned long kwatch_lap_sec(kwatch handle)
 	do_gettimeofday(&_time);
 	new_sec = (_time.tv_sec*1000000) +  _time.tv_usec;
 	result = (new_sec - old_sec);
-	printk("[%u] us \n",(new_sec-old_sec));
+	printk("@@@ %s @@@ [%u] us \n",watch->name,(new_sec-old_sec));
 
 	return result;
 }

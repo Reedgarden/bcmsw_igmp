@@ -25,10 +25,11 @@
 #define MC_NODE_STATUS_DONE 	0
 #define MC_NODE_STATUS_CHANGED  1
 
-#define _DEBUG_
+//#define _DEBUG_
 
 #ifdef _DEBUG_
 #include "bcmsw_kwatch.h"
+kwatch* w_setget_ip_node;
 kwatch* w_mac_table_update_direct;
 #endif
 
@@ -83,6 +84,7 @@ int thread_function(void *data)
 	struct mac_node* mac_node;
 	int oos;	//	out-of-sync
 
+
 	while(1)
 	{	// get ip node
 		igmp_node = get_ip_node(snoop);
@@ -93,6 +95,10 @@ int thread_function(void *data)
 		//if( already_exist(&snoop->macm_list, mac_node) )
 		// kfree(igmp_node);
 		// continue;
+
+#ifdef _DEBUG_
+	kwatch_lap_sec(w_setget_ip_node);
+#endif
 
 #if 1
 		mac_table_update_direct(igmp_node);
@@ -114,10 +120,23 @@ int thread_function(void *data)
 void node_init(void)
 {
 	struct bcmsw_snoop* snoop = get_snoop_instance();
+	struct sched_param sp = { .sched_priority = 10 };
+	int ret;
 
 	// create kthread
 	snoop->task = kthread_create(&thread_function, (void*)snoop, "nodes_thread");
+
+	// set priority
+	ret = sched_setscheduler(snoop->task->pid, SCHED_BATCH , &sp);
+	if(ret == -1) {
+		printk("ERR!!\n");
+		return 1;
+	}
+
+
 	wake_up_process(snoop->task);
+
+
 
 	// register proc mac_table_read
 	proc_register(&proc_snoop);
@@ -190,7 +209,6 @@ static struct ip_node* get_ip_node(struct bcmsw_snoop* s)
 
 		//unlock spin & wait
 		spin_unlock(&s->ip_lock);
-		/*wait_event(s->ip_wait, 0);*/
 		interruptible_sleep_on(&s->ip_wait);
 	}
 	// go get it ..
@@ -202,6 +220,10 @@ static struct ip_node* get_ip_node(struct bcmsw_snoop* s)
 
 int set_ip_node(__u8 type, __be32 group, __u16 port )
 {
+#ifdef _DEBUG_
+	w_setget_ip_node = kwatch_start("set/get_ip_node");
+#endif
+
 	struct bcmsw_snoop* snoop = get_snoop_instance();
 	struct ip_node* node;
 
@@ -366,7 +388,7 @@ static int show_mac_table(char* page, char** atart, off_t off, int count, int *e
 static void mac_table_update_direct(struct ip_node* _node)
 {
 #ifdef _DEBUG_
-	w_mac_table_update_direct = kwatch_start("START");
+	w_mac_table_update_direct = kwatch_start("mac_table_update");
 #endif
 	unsigned short port_map = (1<<_node->port);
 	unsigned char  eth_addr[6];
@@ -379,9 +401,9 @@ static void mac_table_update_direct(struct ip_node* _node)
 	eth_addr[0] = (_node->group>>24) & 0x000000ff;
 
 	net_dev_mii_write(eth_addr, port_map);
+
 #ifdef _DEBUG_
 	kwatch_lap_sec(w_mac_table_update_direct);
-	/*kwatch_stop(w_mac_table_update_direct);*/
 #endif
 }
 

@@ -13,8 +13,7 @@ struct net_device *bcmemac_get_device(void);
 /* IMPORT EXPORTED SYMBOL */
 int bcmsw_reg_get_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned char* buff, unsigned int* data);
 int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned short portmap);
-extern int ethsw_igmp_arl_entry_set(struct net_device *dev, unsigned char* static_mac, unsigned short portmap);
-extern int ethsw_igmp_arl_entry_get(struct net_device *dev, unsigned char* static_mac, struct arl_table_entry* buf);
+void ethsw_igmp_mcst_dfl_map(struct net_device *dev, unsigned short portmap);
 
 struct net_device* net_get_device(void)
 {
@@ -25,6 +24,13 @@ struct net_device* net_get_device(void)
 		return NULL;
 	}
 	return net_root_dev;
+}
+
+void net_dev_set_dfl_map(unsigned short portmap)
+{
+	struct net_device* dev;
+	dev = bcmemac_get_device();
+	ethsw_igmp_mcst_dfl_map(dev, portmap);
 }
 
 int net_dev_mii_write(unsigned char* mac, unsigned short portmap)
