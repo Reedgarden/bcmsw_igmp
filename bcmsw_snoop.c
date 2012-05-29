@@ -20,56 +20,49 @@
 #include "bcmsw_mii.h"
 #include "bcmsw_proc.h"
 
-#define MC_TABLE_STATUS_NONE 	0
-#define MC_TABLE_STATUS_CHANGED 1
-#define MC_NODE_STATUS_DONE 	0
-#define MC_NODE_STATUS_CHANGED  1
-
 //#define _DEBUG_
-
 #ifdef _DEBUG_
 #include "bcmsw_kwatch.h"
 kwatch* w_setget_ip_node;
 kwatch* w_mac_table_update_direct;
 #endif
 
-#define ETH_ALEN 6
-struct mac_node
+typedef struct
 {
-	unsigned char eth_addr[ETH_ALEN];
+	__be32 group;
 	unsigned short port_bitmap;
-	int	type;
-	int sync_s;
 	struct list_head mc_list_node;
-};
-struct ip_node
+}  mc_node;
+
+typedef struct
 {
 	__u8 type;
 	__be32 group;
 	__u16 port;
 	struct list_head ip_list_node;
-};
+} ip_node;
 
-struct bcmsw_snoop {
+typedef struct {
 	struct task_struct *task;
-	struct list_head ipm_list;
-	struct list_head macm_list;
+	struct list_head ip_list;
+	struct list_head mc_list;
 	spinlock_t ip_lock;
-	spinlock_t mac_lock;
 	wait_queue_head_t ip_wait;
 	int insertable;
 	int mac_table_cnt;
-};
+	unsigned short g_portmap;
+} bcmsw_snoop;
 
-static struct bcmsw_snoop* get_snoop_instance(void);
-static void free_snoop(struct bcmsw_snoop* s);
-static struct ip_node* get_ip_node(struct bcmsw_snoop* s);
-static struct mac_node* get_mac_from_ip_node(struct ip_node* n);
-static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node);
-static int set_mac_node(struct mac_node* node, struct mac_node* new);
-static void mac_table_updated(struct bcmsw_snoop* s);
+static bcmsw_snoop* get_snoop_instance(void);
+static void free_snoop(bcmsw_snoop* s);
+
+static ip_node* get_ip_node(bcmsw_snoop* s);
+static mc_node* get_mc_node(ip_node* _ip_node);
+static void set_mc_portmap(mc_node* _mc, ip_node* _ip);
+static void update_g_portmap(int type, unsigned short portmap);
+
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data);
-static void mac_table_update_direct(struct ip_node* _node);
+static void mac_table_update_direct(ip_node* _ip_node);
 
 const bcmsw_proc_t proc_snoop = {
 		0444, 	//mode
@@ -79,11 +72,8 @@ const bcmsw_proc_t proc_snoop = {
 
 int thread_function(void *data)
 {
-	struct bcmsw_snoop* snoop = (struct bcmsw_snoop*)data;
-	struct ip_node* igmp_node;
-	struct mac_node* mac_node;
-	int oos;	//	out-of-sync
-
+	bcmsw_snoop* snoop = (bcmsw_snoop*)data;
+	ip_node* igmp_node;
 
 	while(1)
 	{	// get ip node
@@ -91,26 +81,10 @@ int thread_function(void *data)
 		if(!snoop->insertable)
 			break;
 
-		/*printk("%s %d ... t 0x%x g 0x%x %d \n", __func__, __LINE__, igmp_node->type, igmp_node->group, igmp_node->port);*/
-		//if( already_exist(&snoop->macm_list, mac_node) )
-		// kfree(igmp_node);
-		// continue;
-
-#ifdef _DEBUG_
-	kwatch_lap_sec(w_setget_ip_node);
-#endif
-
-#if 1
 		mac_table_update_direct(igmp_node);
-#else
-		mac_node = get_mac_from_ip_node(igmp_node);
-		oos = update_mac_table(snoop, mac_node);
-		if( oos != MC_TABLE_STATUS_NONE )
-			mac_table_updated(snoop);
-#endif
 
 		kfree(igmp_node);		// i don't need anymore ..
-//		kfree(mac_node);
+
 		if(kthread_should_stop())
 			break;
 	}
@@ -119,7 +93,7 @@ int thread_function(void *data)
 
 void node_init(void)
 {
-	struct bcmsw_snoop* snoop = get_snoop_instance();
+	bcmsw_snoop* snoop = get_snoop_instance();
 	struct sched_param sp = { .sched_priority = 10 };
 	int ret;
 
@@ -127,16 +101,13 @@ void node_init(void)
 	snoop->task = kthread_create(&thread_function, (void*)snoop, "nodes_thread");
 
 	// set priority
-	ret = sched_setscheduler(snoop->task->pid, SCHED_BATCH , &sp);
+	ret = sched_setscheduler(snoop->task, SCHED_RR , &sp);
 	if(ret == -1) {
 		printk("ERR!!\n");
-		return 1;
+		return ;
 	}
 
-
 	wake_up_process(snoop->task);
-
-
 
 	// register proc mac_table_read
 	proc_register(&proc_snoop);
@@ -144,39 +115,39 @@ void node_init(void)
 
 void node_uninit(void)
 {
-	struct bcmsw_snoop* snoop = get_snoop_instance();
+	bcmsw_snoop* snoop = get_snoop_instance();
 	free_snoop(snoop);
 	kthread_stop(snoop->task);
 	kfree(snoop);
 }
 
-static struct bcmsw_snoop* get_snoop_instance(void)
+static bcmsw_snoop* get_snoop_instance(void)
 {
-	static struct bcmsw_snoop* snoop;
+	static bcmsw_snoop* snoop;
 	if(snoop == NULL)
 	{
-		snoop = (struct bcmsw_snoop*)kmalloc(sizeof(struct bcmsw_snoop), GFP_KERNEL);
+		snoop = (bcmsw_snoop*)kmalloc(sizeof(bcmsw_snoop), GFP_KERNEL);
 		// spin init
 		spin_lock_init(&snoop->ip_lock);
-		spin_lock_init(&snoop->mac_lock);
 		// list init
-		INIT_LIST_HEAD(&snoop->ipm_list);
-		INIT_LIST_HEAD(&snoop->macm_list);
+		INIT_LIST_HEAD(&snoop->ip_list);
+		INIT_LIST_HEAD(&snoop->mc_list);
 		// cond init
 		init_waitqueue_head(&snoop->ip_wait);
 		snoop->insertable = 1;
 		snoop->mac_table_cnt=0;
+		snoop->g_portmap = 0x0101;		// default port map
 	}
 	return snoop;
 }
 
-static void free_snoop(struct bcmsw_snoop* s)
+static void free_snoop(bcmsw_snoop* s)
 {
 	struct list_head *ptr, *node;
-	struct ip_node* tmp;
+	ip_node* tmp;
 
 	s->insertable = 0;
-	node = &s->ipm_list;
+	node = &s->ip_list;
 
 	wake_up_interruptible(&s->ip_wait);
 	/*
@@ -184,7 +155,7 @@ static void free_snoop(struct bcmsw_snoop* s)
 	 */
 	spin_lock(&s->ip_lock);
 	for(ptr = node->next; ptr != node; ) {
-		tmp = list_entry(ptr, struct ip_node, ip_list_node);
+		tmp = list_entry(ptr, ip_node, ip_list_node);
 		ptr = ptr->next;
 		list_del(&tmp->ip_list_node);
 		kfree(tmp);
@@ -192,10 +163,10 @@ static void free_snoop(struct bcmsw_snoop* s)
 	spin_unlock(&s->ip_lock);
 }
 
-static struct ip_node* get_ip_node(struct bcmsw_snoop* s)
+static ip_node* get_ip_node(bcmsw_snoop* s)
 {
-	struct list_head *ptr = &s->ipm_list;
-	struct ip_node* node;
+	struct list_head *ptr = &s->ip_list;
+	ip_node* node;
 
 	// spin lock
 	spin_lock(&s->ip_lock);
@@ -204,7 +175,7 @@ static struct ip_node* get_ip_node(struct bcmsw_snoop* s)
 		if( !s->insertable )
 			return NULL;
 
-		if( ptr->next != &s->ipm_list )
+		if( ptr->next != &s->ip_list )
 			break;
 
 		//unlock spin & wait
@@ -212,102 +183,39 @@ static struct ip_node* get_ip_node(struct bcmsw_snoop* s)
 		interruptible_sleep_on(&s->ip_wait);
 	}
 	// go get it ..
-	node = list_entry(ptr->next, struct ip_node, ip_list_node);
+	node = list_entry(ptr->next, ip_node, ip_list_node);
 	list_del(ptr->next);
 	spin_unlock(&s->ip_lock);
 	return node;
 }
 
-int set_ip_node(__u8 type, __be32 group, __u16 port )
+static mc_node* get_mc_node(ip_node* _ip_node)
 {
-#ifdef _DEBUG_
-	w_setget_ip_node = kwatch_start("set/get_ip_node");
-#endif
+	bcmsw_snoop* snoop = get_snoop_instance();
+	struct list_head *ptr, *node;
+	mc_node* tmp;
 
-	struct bcmsw_snoop* snoop = get_snoop_instance();
-	struct ip_node* node;
+	node = &snoop->mc_list;
 
-	if(!snoop->insertable)	// closing..
-		return -ENOMEM;
-
-	// kmalloc
-	node = (struct ip_node* )kmalloc(sizeof(struct ip_node), GFP_KERNEL);
-	if(node == NULL)
-	{
-		printk(KERN_ERR "out-of-memory\n");
-		return -ENOMEM;
+	// search from list
+	for(ptr = node->next; ptr != node; ptr = ptr->next) {
+		tmp = list_entry(ptr, mc_node, mc_list_node);
+		if(tmp->group == _ip_node->group)
+			return tmp;
 	}
 
-	node->type = type;
-	node->group = group;
-	node->port = port;
+	// not exist, kmalloc
+	tmp = (mc_node* )kmalloc(sizeof(mc_node), GFP_KERNEL);
+	tmp->group = _ip_node->group;
+	tmp->port_bitmap = 0;
+	list_add_tail(&tmp->mc_list_node, &snoop->mc_list);
 
-	// add
-	spin_lock(&snoop->ip_lock);
-	list_add_tail(&node->ip_list_node, &snoop->ipm_list);
-	wake_up_interruptible(&snoop->ip_wait);			// wake up
-	spin_unlock(&snoop->ip_lock);
-
-	return 0;
+	return tmp;
 }
 
-static struct mac_node* get_mac_from_ip_node(struct ip_node* n)
+static void set_mc_portmap(mc_node* _mc, ip_node* _ip)
 {
-	struct mac_node* m_node = (struct mac_node*)kmalloc(sizeof(struct mac_node), GFP_KERNEL);
-	m_node->type = n->type;
-
-	m_node->port_bitmap = (1<<n->port);	// be careful!
-	m_node->eth_addr[5] = 0x01;
-	m_node->eth_addr[4] = 0x00;
-	m_node->eth_addr[3] = 0x5E;
-	m_node->eth_addr[2] = (n->group>>8) & 0x000000ff;
-	m_node->eth_addr[1] = (n->group>>16) & 0x000000ff;;
-	m_node->eth_addr[0] = (n->group>>24) & 0x000000ff;
-	m_node->sync_s=MC_NODE_STATUS_CHANGED;		// table has changed!
-
-	return m_node;
-}
-
-static int update_mac_table(struct bcmsw_snoop* s, struct mac_node* mac_node)
-{
-	struct list_head* mac_head = &s->macm_list;
-	struct list_head* ptr;
-	struct mac_node* entry;
-
-	if(mac_head == mac_head->next)	// if nothing in list ..
-	{
-		spin_lock(&s->mac_lock);
-		list_add_tail(&mac_node->mc_list_node, &s->macm_list);
-		s->mac_table_cnt++;
-		spin_unlock(&s->mac_lock);
-		return MC_TABLE_STATUS_CHANGED;				// table has changed!
-	}
-
-	// for loop should be changed!!
-	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
-		entry = list_entry(ptr, struct mac_node, mc_list_node);
-		if(memcmp(entry->eth_addr, mac_node->eth_addr, ETH_ALEN) == 0) {
-			return set_mac_node(entry, mac_node);
-		}
-		/*
-		 * else
-		 * if( entry->eth_addr == 0 )
-		 * delete!!
-		 */
-	}
-
-	// if not exist..
-	spin_lock(&s->mac_lock);
-	list_add_tail(&mac_node->mc_list_node, &s->macm_list);
-	s->mac_table_cnt++;
-	spin_unlock(&s->mac_lock);
-	return MC_TABLE_STATUS_CHANGED;		// table has changed!
-}
-
-static int set_mac_node(struct mac_node* node, struct mac_node* new)
-{
-	int oos=0;
-
+#if 0
 	switch(node->type)
 	{
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
@@ -330,34 +238,62 @@ static int set_mac_node(struct mac_node* node, struct mac_node* new)
 	default:
 		break;
 	}
-	return oos;
+#endif
 }
 
-static void mac_table_updated(struct bcmsw_snoop* s)
+static void update_g_portmap(int type, unsigned short portmap)
 {
-	struct list_head *ptr, *mac_head;
-	struct mac_node* tmp;
+	bcmsw_snoop* snoop =  get_snoop_instance();
 
-	mac_head = &s->macm_list;
+	switch(type)
+	{
+		case IGMP_HOST_MEMBERSHIP_REPORT:
+		case IGMPV2_HOST_MEMBERSHIP_REPORT:
+			snoop->g_portmap |= portmap;
+			break;
+		case IGMP_HOST_LEAVE_MESSAGE:
+			snoop->g_portmap &= ~portmap;
+			break;
+		default:
+			// none
+			break;
+	}
+	net_dev_set_dfl_map(snoop->g_portmap);	// mii write!
+}
 
-	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
-		tmp = list_entry(ptr, struct mac_node, mc_list_node);
+int set_ip_node(__u8 type, __be32 group, __u16 port )
+{
+	bcmsw_snoop* snoop = get_snoop_instance();
+	ip_node* node;
 
-		if(tmp->sync_s == MC_NODE_STATUS_CHANGED)
-		{
-			//write!!
-			/*printk("*%s* %d .. 0x%x\n", __func__, __LINE__, tmp->port_bitmap);*/
-			net_dev_mii_write(tmp->eth_addr, tmp->port_bitmap);
-			tmp->sync_s = MC_NODE_STATUS_DONE;
-			s->mac_table_cnt--;
-		}
+	if(!snoop->insertable)	// closing..
+		return -ENOMEM;
+
+	// kmalloc
+	node = (ip_node* )kmalloc(sizeof(ip_node), GFP_KERNEL);
+	if(node == NULL)
+	{
+		printk(KERN_ERR "out-of-memory\n");
+		return -ENOMEM;
 	}
 
+	node->type = type;
+	node->group = group;
+	node->port = port;
+
+	// add
+	spin_lock(&snoop->ip_lock);
+	list_add_tail(&node->ip_list_node, &snoop->ip_list);
+	wake_up_interruptible(&snoop->ip_wait);			// wake up
+	spin_unlock(&snoop->ip_lock);
+
+	return 0;
 }
 
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
 	int len, i;
+#if 0
 	struct bcmsw_snoop* s = get_snoop_instance();
 	struct list_head *ptr, *mac_head;
 	struct mac_node* tmp;
@@ -382,25 +318,21 @@ static int show_mac_table(char* page, char** atart, off_t off, int count, int *e
 	}
 
 	*eof = 1;
+#endif
 	return len;
 }
 
-static void mac_table_update_direct(struct ip_node* _node)
+static void mac_table_update_direct(ip_node* _ip_node)
 {
 #ifdef _DEBUG_
 	w_mac_table_update_direct = kwatch_start("mac_table_update");
 #endif
-	unsigned short port_map = (1<<_node->port);
-	unsigned char  eth_addr[6];
+//	mc_node* _mc_node;
+	update_g_portmap(_ip_node->type, _ip_node->port);
 
-	eth_addr[5] = 0x01;
-	eth_addr[4] = 0x00;
-	eth_addr[3] = 0x5E;
-	eth_addr[2] = (_node->group>>8) & 0x000000ff;
-	eth_addr[1] = (_node->group>>16) & 0x000000ff;;
-	eth_addr[0] = (_node->group>>24) & 0x000000ff;
-
-	net_dev_mii_write(eth_addr, port_map);
+	// get mac_node
+//	_mc_node = get_mc_node(_ip_node);
+//	set_mc_portmap(_mc_node, _ip_node);
 
 #ifdef _DEBUG_
 	kwatch_lap_sec(w_mac_table_update_direct);
