@@ -39,7 +39,7 @@ void igmp_wrap_init(void)
 
 	// igmp mode setting
 	dev = net_get_device();
-	ethsw_igmp_mode(dev, IGMP_REG_MODE_OFF);
+	ethsw_igmp_mode(dev, IGMP_REG_MODE_ON);
 }
 
 void igmp_wrap_deinit(void)

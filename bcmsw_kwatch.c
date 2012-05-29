@@ -44,11 +44,13 @@ kwatch kwatch_start(const char* name)
 	struct list_head* ptr;
 
 	// for loop should be changed!!
-	for(ptr = head->next; ptr != head; ptr = ptr->next) {
-		watch = list_entry(ptr, kwatch_t, _node);
-		if(strncmp(watch->name,name, (strlen(name)) == 0))
-			return watch;
-	}
+//	if(list->cnt != 0) {
+//		for(ptr = head->next; ptr != head; ptr = ptr->next) {
+//			watch = list_entry(ptr, kwatch_t, _node);
+//			if(strncmp(watch->name,name, (strlen(name)) == 0))
+//				return watch;
+//		}
+//	}
 
 	//cannot find
 	watch = kwatch_new(name);
@@ -56,26 +58,24 @@ kwatch kwatch_start(const char* name)
 	return watch;
 }
 
-int kwatch_lap_sec(kwatch handle)
+unsigned long kwatch_lap_sec(kwatch handle)
 {
 	kwatch_t* watch;
 	watch = (kwatch_t*)handle;
+	struct timeval _time;
+	unsigned long old_sec , new_sec, result;
+
+	old_sec = (watch->t_time.tv_sec*1000000) +  watch->t_time.tv_usec;
 
 	if(watch == NULL)
 		return -1;
 
-	return watch->t_time.tv_sec;
-}
+	do_gettimeofday(&_time);
+	new_sec = (_time.tv_sec*1000000) +  _time.tv_usec;
+	result = (new_sec - old_sec);
+	printk("[%u] us \n",(new_sec-old_sec));
 
-int kwatch_lap_usec(kwatch handle)
-{
-	kwatch_t* watch;
-	watch = (kwatch_t*)handle;
-
-	if(watch == NULL)
-		return -1;
-
-	return watch->t_time.tv_usec;
+	return result;
 }
 
 int kwatch_stop(kwatch handle)
@@ -140,6 +140,7 @@ static void put_kwatch_list(kwatch_list* list, kwatch_t* node)
 static kwatch_t* kwatch_new(const char* name)
 {
 	kwatch_t* watch;
+//	printk("***kwatch_new watch created with %s\n", name);
 	watch = (kwatch_t*)kmalloc(sizeof(kwatch_t), GFP_KERNEL);
 	watch->name = (char*)name;
 

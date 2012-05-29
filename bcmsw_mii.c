@@ -10,8 +10,11 @@
 
 struct net_device *bcmemac_get_device(void);
 
+/* IMPORT EXPORTED SYMBOL */
 int bcmsw_reg_get_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned char* buff, unsigned int* data);
 int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned short portmap);
+extern int ethsw_igmp_arl_entry_set(struct net_device *dev, unsigned char* static_mac, unsigned short portmap);
+extern int ethsw_igmp_arl_entry_get(struct net_device *dev, unsigned char* static_mac, struct arl_table_entry* buf);
 
 struct net_device* net_get_device(void)
 {
@@ -28,6 +31,7 @@ int net_dev_mii_write(unsigned char* mac, unsigned short portmap)
 {
 	struct net_device* dev = net_get_device();
 	bcmsw_reg_set_igmp_entry(dev, mac, portmap);		// 0 - IGMP_JOIN
+	/*ethsw_igmp_arl_entry_set(dev, mac, portmap);*/
 	return 0;
 }
 unsigned int net_dev_get_up(void)
@@ -35,7 +39,6 @@ unsigned int net_dev_get_up(void)
 	struct net_device* dev = net_get_device();
 	__be32 saddr=0;
 	saddr = inet_select_addr(dev,0,0);	// get local host ip address
-	printk("address 0x%x \n", saddr);
 	return saddr;
 }
 

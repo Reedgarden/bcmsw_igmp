@@ -21,8 +21,7 @@ kwatch kwatch_start(const char* name);
  * return current time and watch is going on
  * int lap(handle);
  */
-int kwatch_lap_sec(kwatch handle);
-int kwatch_lap_usec(kwatch handle);
+unsigned long kwatch_lap_sec(kwatch handle);
 
 /*
  * clear current time
