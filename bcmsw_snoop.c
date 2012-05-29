@@ -20,11 +20,10 @@
 #include "bcmsw_mii.h"
 #include "bcmsw_proc.h"
 
-//#define _DEBUG_
+#define _DEBUG_
+
 #ifdef _DEBUG_
 #include "bcmsw_kwatch.h"
-kwatch* w_setget_ip_node;
-kwatch* w_mac_table_update_direct;
 #endif
 
 typedef struct
@@ -70,6 +69,11 @@ const bcmsw_proc_t proc_snoop = {
 		show_mac_table
 };
 
+#ifdef _DEBUG_
+kwatch* w_get_set_ip;
+kwatch* w_mac_tableu;
+#endif
+
 int thread_function(void *data)
 {
 	bcmsw_snoop* snoop = (bcmsw_snoop*)data;
@@ -78,6 +82,11 @@ int thread_function(void *data)
 	while(1)
 	{	// get ip node
 		igmp_node = get_ip_node(snoop);
+
+#ifdef _DEBUG_
+		kwatch_lap_sec(w_get_set_ip);
+#endif
+
 		if(!snoop->insertable)
 			break;
 
@@ -136,7 +145,7 @@ static bcmsw_snoop* get_snoop_instance(void)
 		init_waitqueue_head(&snoop->ip_wait);
 		snoop->insertable = 1;
 		snoop->mac_table_cnt=0;
-		snoop->g_portmap = 0x0101;		// default port map
+		snoop->g_portmap = 0x0102;		// default port map
 	}
 	return snoop;
 }
@@ -249,20 +258,25 @@ static void update_g_portmap(int type, unsigned short portmap)
 	{
 		case IGMP_HOST_MEMBERSHIP_REPORT:
 		case IGMPV2_HOST_MEMBERSHIP_REPORT:
-			snoop->g_portmap |= portmap;
+			snoop->g_portmap |= (1<<portmap);
 			break;
 		case IGMP_HOST_LEAVE_MESSAGE:
-			snoop->g_portmap &= ~portmap;
+			snoop->g_portmap &= ~(1<<portmap);
 			break;
 		default:
 			// none
 			break;
 	}
+	printk("@@@ %s @@@ type 0x%x [0x%x] \n",__func__,type, snoop->g_portmap);
 	net_dev_set_dfl_map(snoop->g_portmap);	// mii write!
 }
 
 int set_ip_node(__u8 type, __be32 group, __u16 port )
 {
+#ifdef _DEBUG_
+	w_get_set_ip = kwatch_start("w_get_set_ip");
+#endif
+
 	bcmsw_snoop* snoop = get_snoop_instance();
 	ip_node* node;
 
@@ -325,8 +339,9 @@ static int show_mac_table(char* page, char** atart, off_t off, int count, int *e
 static void mac_table_update_direct(ip_node* _ip_node)
 {
 #ifdef _DEBUG_
-	w_mac_table_update_direct = kwatch_start("mac_table_update");
+	w_mac_tableu = kwatch_start("w_mac_tableu");
 #endif
+
 //	mc_node* _mc_node;
 	update_g_portmap(_ip_node->type, _ip_node->port);
 
@@ -335,7 +350,7 @@ static void mac_table_update_direct(ip_node* _ip_node)
 //	set_mc_portmap(_mc_node, _ip_node);
 
 #ifdef _DEBUG_
-	kwatch_lap_sec(w_mac_table_update_direct);
+	kwatch_lap_sec(w_mac_tableu);
 #endif
 }
 
