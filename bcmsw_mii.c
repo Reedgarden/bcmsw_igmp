@@ -15,6 +15,8 @@ int bcmsw_reg_get_igmp_entry(struct net_device *dev, unsigned char* mac, unsigne
 int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned short portmap);
 void ethsw_igmp_mcst_dfl_map(struct net_device *dev, unsigned short portmap);
 
+extern int mii_phy_link_ok(struct net_device *dev, int port);
+
 struct net_device* net_get_device(void)
 {
 	struct net_device* net_root_dev;
@@ -40,6 +42,13 @@ int net_dev_mii_write(unsigned char* mac, unsigned short portmap)
 	/*ethsw_igmp_arl_entry_set(dev, mac, portmap);*/
 	return 0;
 }
+
+int net_dev_phy_link_ok(int port)
+{
+	struct net_device* dev = net_get_device();
+	return mii_phy_link_ok(dev, port);
+}
+
 unsigned int net_dev_get_up(void)
 {
 	struct net_device* dev = net_get_device();

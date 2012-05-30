@@ -25,8 +25,8 @@ struct net_device* net_get_device(void);
 
 int net_dev_mii_write(unsigned char* mac, unsigned short portmap);
 unsigned int net_dev_get_up(void);
-
 void net_dev_set_dfl_map(unsigned short portmap);
+int net_dev_phy_link_ok(int port);
 
 #if 0	// this is test code
 void net_dev_test_mii_rw(struct net_device*);
