@@ -259,6 +259,15 @@ static int set_mc_node(ip_node* _ip_node)
 	for(ptr = node->next; ptr != node; ptr = ptr->next) {
 		tmp = list_entry(ptr, mc_node, mc_list_node);
 		if(tmp->group == _ip_node->group) {
+			switch (_ip_node->type) {
+				case IGMP_HOST_MEMBERSHIP_REPORT:
+				case IGMPV2_HOST_MEMBERSHIP_REPORT:
+					tmp->port_bitmap |= (1<<_ip_node->port);
+					break;
+				case IGMP_HOST_LEAVE_MESSAGE:
+					tmp->port_bitmap &= ~(1<<_ip_node->port);
+					break;
+			}
 			// renewal
 			cancel_delayed_work(&tmp->work);
 			queue_delayed_work(snoop->wq,&tmp->work, msecs_to_jiffies(MC_DELAY_MSEC));
@@ -337,7 +346,6 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 	node->group = group;
 	node->port = port;
 
-	printk(" port!! %d \n", port);
 
 	// add
 	spin_lock(&snoop->ip_lock);
