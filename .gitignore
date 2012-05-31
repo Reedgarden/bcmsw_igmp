@@ -1,0 +1,12 @@
+/bcmsw_igmp.o
+/bcmsw_kwatch.o
+/bcmsw_mii.o
+/bcmsw_proc.o
+/bcmsw_proxy.mod.o
+/bcmsw_proxy.o
+/bcmsw_snoop.o
+/module_main.o
+/bcmsw_proxy.ko
+/Module.symvers
+/modules.order
+/bcmsw_proxy.mod.c
