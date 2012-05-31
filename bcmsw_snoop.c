@@ -80,7 +80,7 @@ typedef struct {
 static bcmsw_snoop* get_snoop_instance(void);
 static void free_snoop(bcmsw_snoop* s);
 static ip_node* get_ip_node(bcmsw_snoop* s);
-static void set_mc_node(ip_node* _ip_node);
+static int set_mc_node(ip_node* _ip_node);
 static void mc_node_expiried(struct work_struct* work);
 static void update_g_portmap(int type, unsigned short portmap);
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data);
@@ -181,7 +181,8 @@ static bcmsw_snoop* get_snoop_instance(void)
 
 		INIT_WORK(&snoop->phy_work, bcmsw_gphy_link_status);
 
-		snoop->wq = create_workqueue("mc_list_queue");
+		/*snoop->wq = create_workqueue("mc_list_queue");*/
+		snoop->wq = create_singlethread_workqueue("mc_list_queue");
 		if(snoop->wq == NULL)
 			return NULL;
 	}
@@ -247,14 +248,13 @@ static ip_node* get_ip_node(bcmsw_snoop* s)
 }
 
 #define MC_DELAY_MSEC (135000)
-static void set_mc_node(ip_node* _ip_node)
+static int set_mc_node(ip_node* _ip_node)
 {
 	bcmsw_snoop* snoop = get_snoop_instance();
 	struct list_head *ptr, *node;
 	mc_node* tmp;
 
 	node = &snoop->mc_list;
-
 	// search from list
 	for(ptr = node->next; ptr != node; ptr = ptr->next) {
 		tmp = list_entry(ptr, mc_node, mc_list_node);
@@ -262,6 +262,7 @@ static void set_mc_node(ip_node* _ip_node)
 			// renewal
 			cancel_delayed_work(&tmp->work);
 			queue_delayed_work(snoop->wq,&tmp->work, msecs_to_jiffies(MC_DELAY_MSEC));
+			return 0;
 		}
 	}
 
@@ -272,10 +273,10 @@ static void set_mc_node(ip_node* _ip_node)
 	switch (_ip_node->type) {
 		case IGMP_HOST_MEMBERSHIP_REPORT:
 		case IGMPV2_HOST_MEMBERSHIP_REPORT:
-			tmp->port_bitmap |= _ip_node->port;
+			tmp->port_bitmap |= (1<<_ip_node->port);
 			break;
 		case IGMP_HOST_LEAVE_MESSAGE:
-			tmp->port_bitmap &= ~(_ip_node->port);
+			tmp->port_bitmap &= ~(1<<_ip_node->port);
 			break;
 	}
 	INIT_DELAYED_WORK(&tmp->work, mc_node_expiried);
@@ -284,6 +285,8 @@ static void set_mc_node(ip_node* _ip_node)
 	spin_lock(&snoop->mc_lock);
 	list_add_tail(&tmp->mc_list_node, &snoop->mc_list);
 	spin_unlock(&snoop->mc_lock);
+
+	return 0;
 }
 
 static void update_g_portmap(int type, unsigned short portmap)
@@ -307,7 +310,6 @@ static void update_g_portmap(int type, unsigned short portmap)
 			// none
 			break;
 	}
-	printk("@@@ %s @@@ type 0x%x [0x%x] \n",__func__,type, snoop->g_portmap);
 	net_dev_set_dfl_map(snoop->g_portmap);	// mii write!
 }
 
@@ -335,6 +337,8 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 	node->group = group;
 	node->port = port;
 
+	printk(" port!! %d \n", port);
+
 	// add
 	spin_lock(&snoop->ip_lock);
 	list_add_tail(&node->ip_list_node, &snoop->ip_list);
@@ -346,23 +350,35 @@ int set_ip_node(__u8 type, __be32 group, __u16 port )
 
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
-	int len, i;
 	bcmsw_snoop* snoop = get_snoop_instance();
 	mc_node* tmp;
 	struct list_head *ptr, *mac_head;
+	int len;
 
 	mac_head = &snoop->mc_list;
 
-	len= sprintf(page    , " mac \t\t portmap \n");
-	len+=sprintf(page+len, "===================\n");
+	len= sprintf(page    , " Group IP \t\t MCST addr \t\t Port Map \n");
+	len+=sprintf(page+len, "---------------------------------------------------------\n");
 
 	spin_lock(&snoop->mc_lock);
 	for(ptr = mac_head->next; ptr != mac_head; ptr = ptr->next) {
 		tmp = list_entry(ptr, mc_node, mc_list_node);
+		// group ip
+		len += sprintf( page+len, "%3d.", 	(tmp->group) & 0x000000ff );
+		len += sprintf( page+len, "%3d.", 	(tmp->group>>8) & 0x000000ff );
+		len += sprintf( page+len, "%3d.", 	(tmp->group>>16) & 0x000000ff );
+		len += sprintf( page+len, "%3d \t", 	(tmp->group>>24) & 0x000000ff );
 
-		len += sprintf( page+len, "0x%02x\t\t", tmp->group );
-		len += sprintf( page+len , " 0x%x\t", tmp->port_bitmap);
+		// MCST addr
+		len += sprintf( page+len, "01:00:5e:");
+		len += sprintf( page+len, "%02x:", (tmp->group>>8) & 0x0000007f );
+		len += sprintf( page+len, "%02x:", (tmp->group>>16) & 0x000000ff );
+		len += sprintf( page+len, "%02x \t", (tmp->group>>24) & 0x000000ff );
+
+		len += sprintf( page+len , " 0x%x", tmp->port_bitmap);
+		len += sprintf( page+len , "\n");
 	}
+
 	spin_unlock(&snoop->mc_lock);
 
 	*eof = 1;
@@ -420,16 +436,14 @@ static void bcmsw_gphy_link_status(struct work_struct *work)
 Name: mc_node_expiried
 Purpose: occurr this function when mac node expired (default:135 sec)
 -------------------------------------------------------------------------- */
-static void mc_node_expiried(struct work_struct* work)
+static void mc_node_expiried(struct work_struct* w)
 {
 	bcmsw_snoop * snoop = get_snoop_instance();
-	mc_node* mc = container_of(work, mc_node, work);
+	mc_node* mc = container_of(w, mc_node, work);
 
 	struct list_head *ptr, *node;
 	mc_node* tmp;
 	node = &snoop->mc_list;
-
-	printk("@@@ %s @@@ !!!!  [group:0x%08x portmap:0x%04x\n",__func__, tmp->group, tmp->port_bitmap);
 
 	// free ip_node
 	spin_lock(&snoop->mc_lock);
@@ -440,6 +454,7 @@ static void mc_node_expiried(struct work_struct* work)
 		if(tmp == mc) {
 			list_del(&tmp->mc_list_node);
 			kfree(tmp);
+			break;
 		}
 	}
 	spin_unlock(&snoop->mc_lock);

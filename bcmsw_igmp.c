@@ -73,17 +73,12 @@ int igmp_w_rcv(struct sk_buff *skb)
 	}
 
 	ih = igmp_hdr(skb);
-
 	switch(ih->type) {
 	case IGMP_HOST_MEMBERSHIP_REPORT:
 	case IGMPV2_HOST_MEMBERSHIP_REPORT:
 	case IGMP_HOST_LEAVE_MESSAGE:
 		if( set_ip_node(ih->type, ih->group, igmp_packet_check_loop(skb)) != 0 )
 			printk(KERN_ERR "WARN!! Fail igmp Hooking!! \n");
-#if 0
-		if( set_ip_node(ih->type, ih->group, net_get_port(skb)) != 0 )
-			printk(KERN_ERR "WARN!! Fail igmp Hooking!! \n");
-#endif
 		break;
 	/* case another protocol */
 	default:
