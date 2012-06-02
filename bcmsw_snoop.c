@@ -82,6 +82,7 @@ static void free_snoop(bcmsw_snoop* s);
 static ip_node* get_ip_node(bcmsw_snoop* s);
 static int set_mc_node(ip_node* _ip_node);
 static void mc_node_expiried(struct work_struct* work);
+static void mc_node_eliminate(void);
 static void update_g_portmap(int type, unsigned short portmap);
 static int show_mac_table(char* page, char** atart, off_t off, int count, int *eof, void *data);
 static void mac_table_update_direct(ip_node* _ip_node);
@@ -435,6 +436,9 @@ static void bcmsw_gphy_link_status(struct work_struct *work)
 		spin_lock(&snoop->portmap_lock);
 		snoop->g_portmap &= DEFUALT_G_PORTMAP;
 		spin_unlock(&snoop->portmap_lock);
+
+		// disable all mc_list's LAN portmap
+		mc_node_eliminate();
 	}
 
 }
@@ -463,6 +467,26 @@ static void mc_node_expiried(struct work_struct* w)
 			kfree(tmp);
 			break;
 		}
+	}
+	spin_unlock(&snoop->mc_lock);
+}
+
+/* --------------------------------------------------------------------------
+Name: mc_node_eliminate
+Purpose: eliminate LAN portmap from mc_node list
+-------------------------------------------------------------------------- */
+static void mc_node_eliminate(void)
+{
+	bcmsw_snoop * snoop = get_snoop_instance();
+	struct list_head *ptr, *node;
+	mc_node* tmp;
+
+	node = &snoop->mc_list;
+	// search from list
+	spin_lock(&snoop->mc_lock);
+	for(ptr = node->next; ptr != node; ptr = ptr->next) {
+		tmp = list_entry(ptr, mc_node, mc_list_node);
+		tmp->port_bitmap &= ~(HW_PORT_LAN);
 	}
 	spin_unlock(&snoop->mc_lock);
 }
