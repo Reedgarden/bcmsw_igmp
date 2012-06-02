@@ -44,8 +44,9 @@ void qos_uninit(void)
 
 static int show_rx_unipkts(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
-	int len, pkts;
-	net_dev_rx_ucst_pkts((unsigned char*)&pkts);
+	int len;
+	unsigned int pkts;
+	/*net_dev_rx_ucst_pkts((unsigned char*)&pkts);*/
 	len= sprintf(page,"%d\n", pkts);
 	*eof = 1;
 	return len;
@@ -54,8 +55,9 @@ static int show_rx_unipkts(char* page, char** atart, off_t off, int count, int *
 
 static int show_rx_multipkts(char* page, char** atart, off_t off, int count, int *eof, void *data)
 {
-	int len, pkts;
-	net_dev_rx_mcst_pkts((unsigned char*)&pkts);
+	int len;
+	unsigned int pkts;
+	/*net_dev_rx_mcst_pkts((unsigned char*)&pkts);*/
 	len= sprintf(page,"%d\n", pkts);
 	*eof = 1;
 	return len;

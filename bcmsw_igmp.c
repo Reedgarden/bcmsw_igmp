@@ -29,7 +29,6 @@ static inline __u16 net_get_port(struct sk_buff *skb) {	return (skb_rtable(skb)-
 
 void igmp_wrap_init(void)
 {
-	struct net_device* dev;
 	int hash = IPPROTO_IGMP & (MAX_INET_PROTOS -1);
 
 	// igmp protocol hook
@@ -38,8 +37,7 @@ void igmp_wrap_init(void)
 	original_protocol->handler = igmp_w_rcv;
 
 	// igmp mode setting
-	dev = net_get_device();
-	ethsw_igmp_mode(dev, IGMP_REG_MODE_OFF);
+	ethsw_igmp_mode( net_get_device(), IGMP_REG_MODE_OFF);
 }
 
 void igmp_wrap_deinit(void)
@@ -82,14 +80,12 @@ int igmp_w_rcv(struct sk_buff *skb)
 		break;
 	/* case another protocol */
 	default:
-		break;
+		original_handler(skb);
+		return 0;
 	}
 
-	original_handler(skb);
-	return 0;
-
 toss:
-	original_handler(skb);
+	kfree_skb(skb);
 	return 0;
 }
 
