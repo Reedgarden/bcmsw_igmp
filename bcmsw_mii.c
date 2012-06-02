@@ -9,6 +9,8 @@
 #include <linux/inetdevice.h>
 
 #define PAGE_MIB_PORT_IMP	(0x28)
+	#define MIB_TX_UCST_ADDR	(0x18)
+	#define MIB_TX_MCST_ADDR	(0x14)
 	#define MIB_RX_UCST_ADDR	(0x94)
 	#define MIB_RX_MCST_ADDR	(0x98)
 
@@ -18,11 +20,8 @@ struct net_device *bcmemac_get_device(void);
 int bcmsw_reg_get_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned char* buff, unsigned int* data);
 int bcmsw_reg_set_igmp_entry(struct net_device *dev, unsigned char* mac, unsigned short portmap);
 void ethsw_igmp_mcst_dfl_map(struct net_device *dev, unsigned short portmap);
-
-#if 0
 int bcmsw_reg_read(struct net_device *dev, int page, int reg, unsigned char *data, int len);
 int bcmsw_reg_write(struct net_device *dev, int page, int reg, unsigned char *data, int len);
-#endif
 
 extern int mii_phy_link_ok(struct net_device *dev, int port);
 
@@ -66,7 +65,6 @@ unsigned int net_dev_get_up(void)
 	return saddr;
 }
 
-#if 0
 void net_dev_rx_ucst_pkts(unsigned char* buf)
 {
 	struct net_device* dev = net_get_device();
@@ -78,7 +76,17 @@ void net_dev_rx_mcst_pkts(unsigned char* buf)
 	struct net_device* dev = net_get_device();
 	bcmsw_reg_read(dev, PAGE_MIB_PORT_IMP, MIB_RX_MCST_ADDR,buf,4);
 }
-#endif
+
+void net_dev_tx_ucst_pkts(unsigned char* buf)
+{
+	struct net_device* dev = net_get_device();
+	bcmsw_reg_read(dev, PAGE_MIB_PORT_IMP, MIB_TX_UCST_ADDR,buf,4);
+}
+void net_dev_tx_mcst_pkts(unsigned char* buf)
+{
+	struct net_device* dev = net_get_device();
+	bcmsw_reg_read(dev, PAGE_MIB_PORT_IMP, MIB_TX_UCST_ADDR,buf,4);
+}
 
 #if 0	// this is test code
 void net_dev_test_mii_rw(struct net_device* dev)

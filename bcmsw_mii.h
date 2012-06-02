@@ -28,10 +28,13 @@ unsigned int net_dev_get_up(void);
 void net_dev_set_dfl_map(unsigned short portmap);
 int net_dev_phy_link_ok(int port);
 
-#if 0
+/* get rx ucst/msct pkts number */
 void net_dev_rx_ucst_pkts(unsigned char* buf);
 void net_dev_rx_mcst_pkts(unsigned char* buf);
-#endif
+
+/* get tx ucst/msct pkts number */
+void net_dev_tx_ucst_pkts(unsigned char* buf);
+void net_dev_tx_mcst_pkts(unsigned char* buf);
 
 #if 0	// this is test code
 void net_dev_test_mii_rw(struct net_device*);

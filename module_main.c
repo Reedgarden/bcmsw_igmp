@@ -30,14 +30,14 @@ static int init_bcmsw_module(void)
 	// test codes
 	set_ip_node(0x01,0xffffffef,0x01);
 #endif
-	printk("bcmsw_module inserted \n");
+	printk("@@@ bcmsw_module inserted @@@\n");
 
 	return 0;
 }
 
 static void deinit_bcmsw_module(void)
 {
-	printk("deinit\n");
+	printk("@@@ bcmsw_module deinit @@@\n");
 	qos_uninit();
 	igmp_wrap_deinit();
 	node_uninit();
