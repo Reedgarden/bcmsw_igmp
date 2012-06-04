@@ -8,7 +8,7 @@
 #ifndef BCMSW_QOS_H_
 #define BCMSW_QOS_H_
 
-void qos_init(void);
-void qos_uninit(void);
+void statistics_init(void);
+void statistics_uninit(void);
 
 #endif /* BCMSW_QOS_H_ */

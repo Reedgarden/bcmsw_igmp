@@ -14,14 +14,15 @@
 #include "bcmsw_igmp.h"
 #include "bcmsw_snoop.h"
 #include "bcmsw_proc.h"
-#include "bcmsw_qos.h"
+#include "bcmsw_statistics.h"
 
 static int init_bcmsw_module(void)
 {
 	proc_init();
 	node_init();
 	igmp_wrap_init();
-	qos_init();
+	statistics_init();
+	printk("@@@ bcmsw_module inserted @@@\n");
 
 #if 0 // test codes
 	struct net_device* dev;
@@ -30,15 +31,13 @@ static int init_bcmsw_module(void)
 	// test codes
 	set_ip_node(0x01,0xffffffef,0x01);
 #endif
-	printk("@@@ bcmsw_module inserted @@@\n");
-
 	return 0;
 }
 
 static void deinit_bcmsw_module(void)
 {
 	printk("@@@ bcmsw_module deinit @@@\n");
-	qos_uninit();
+	statistics_init();
 	igmp_wrap_deinit();
 	node_uninit();
 	proc_uninit();

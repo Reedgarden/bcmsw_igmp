@@ -40,7 +40,7 @@ const bcmsw_proc_t proc_tx_mcstpkt = {
 		show_tx_multipkts
 };
 
-void qos_init(void)
+void statistics_init(void)
 {
 	// TODO : QOS Enable here
 	// port based qos enable call!!
@@ -48,10 +48,12 @@ void qos_init(void)
 	// register proc mac_table_read
 	proc_register(&proc_rx_ucstpkt);
 	proc_register(&proc_rx_mcstpkt);
+	proc_register(&proc_tx_ucstpkt);
+	proc_register(&proc_tx_mcstpkt);
 
 }
 
-void qos_uninit(void)
+void statistics_uninit(void)
 {
 	// none .. proc will be freed by proc manager
 }
